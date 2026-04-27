@@ -1,0 +1,360 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── INSTITUIÇÕES ──────────────────────────────────────────────
+model Institution {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String   @unique
+  city      String
+  state     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses  Course[]
+  students Student[]
+}
+
+// ── CURSOS ────────────────────────────────────────────────────
+model Course {
+  id             String      @id @default(cuid())
+  name           String
+  durationMonths Int
+  area           String
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id])
+
+  students Student[]
+}
+
+// ── USUÁRIOS ──────────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  role          UserRole  @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  student  Student?
+  company  Company?
+  sessions Session[]
+  accounts Account[]
+}
+
+enum UserRole {
+  STUDENT
+  COMPANY
+  ADMIN
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── ALUNOS ────────────────────────────────────────────────────
+model Student {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  fullName       String
+  avatarUrl      String?
+  phone          String?
+  city           String
+  state          String
+  linkedinUrl    String?
+  githubUrl      String?
+  portfolioUrl   String?
+  portfolioLinks String[]
+  cvUrl          String?
+  bio            String?  @db.Text
+
+  institutionId       String
+  institution         Institution @relation(fields: [institutionId], references: [id])
+  courseId            String
+  course              Course      @relation(fields: [courseId], references: [id])
+  currentSemester     Int
+  enrollmentPeriod    PeriodType
+  enrollmentYear      Int
+  enrollmentMonth     Int
+  expectedGraduationDate DateTime
+
+  profileStatus       ProfileStatus @default(ACTIVE)
+  isVisible           Boolean       @default(true)
+  profileCompleteness Int           @default(0)
+
+  plan             StudentPlan   @default(FREE)
+  planExpiresAt    DateTime?
+  stripeCustomerId String?
+  stripeSubId      String?
+
+  accountExpiresAt  DateTime
+  accountStatus     AccountStatus @default(ACTIVE)
+
+  emailNotifications Boolean   @default(true)
+  lastSeenAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  experiences Experience[]
+  skills      StudentSkill[]
+  proposals   Proposal[]     @relation("StudentProposals")
+}
+
+enum PeriodType {
+  MORNING
+  AFTERNOON
+  NIGHT
+  ONLINE
+}
+
+enum ProfileStatus {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  SUSPENDED
+}
+
+enum StudentPlan {
+  FREE
+  ALUMNI_BASIC
+  ALUMNI_PRO
+}
+
+enum AccountStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  ALUMNI
+}
+
+// ── EXPERIÊNCIAS ──────────────────────────────────────────────
+model Experience {
+  id           String         @id @default(cuid())
+  studentId    String
+  student      Student        @relation(fields: [studentId], references: [id])
+  type         ExperienceType
+  title        String
+  organization String
+  description  String?        @db.Text
+  startDate    DateTime
+  endDate      DateTime?
+  isCurrent    Boolean        @default(false)
+  projectUrl   String?
+  technologies String[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+enum ExperienceType {
+  INTERNSHIP
+  JOB
+  FREELANCE
+  ACADEMIC_PROJECT
+  VOLUNTEER
+  RESEARCH
+  COURSE
+}
+
+// ── HABILIDADES ───────────────────────────────────────────────
+model Skill {
+  id       String         @id @default(cuid())
+  name     String         @unique
+  category String
+  students StudentSkill[]
+}
+
+model StudentSkill {
+  studentId String
+  skillId   String
+  level     SkillLevel @default(BEGINNER)
+  student   Student    @relation(fields: [studentId], references: [id])
+  skill     Skill      @relation(fields: [skillId], references: [id])
+
+  @@id([studentId, skillId])
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ── EMPRESAS ──────────────────────────────────────────────────
+model Company {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  companyName      String
+  cnpj             String  @unique
+  logoUrl          String?
+  website          String?
+  linkedinUrl      String?
+  description      String? @db.Text
+  sector           String
+  size             CompanySize
+
+  city             String
+  state            String
+  address          String?
+  isRemoteFriendly Boolean @default(false)
+
+  contactName  String
+  contactRole  String
+  contactPhone String?
+
+  plan             CompanyPlan @default(FREE)
+  planExpiresAt    DateTime?
+  isVerified       Boolean     @default(false)
+  isActive         Boolean     @default(true)
+  stripeCustomerId String?
+  stripeSubId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vacancies Vacancy[]
+  proposals Proposal[] @relation("CompanyProposals")
+}
+
+enum CompanySize {
+  MICRO
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum CompanyPlan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+// ── VAGAS ─────────────────────────────────────────────────────
+model Vacancy {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  title         String
+  description   String  @db.Text
+  requirements  String  @db.Text
+  activities    String  @db.Text
+
+  monthlyAllowance  Float
+  transportVoucher  Boolean @default(false)
+  mealVoucher       Boolean @default(false)
+  healthPlan        Boolean @default(false)
+  otherBenefits     String?
+
+  area      String
+  workload  Int
+  modality  WorkModality
+  city      String?
+  state     String?
+
+  hiringPossibility HiringPossibility
+  hiringNotes       String?
+
+  targetCourses   String[]
+  targetSemesters Int[]
+  targetAreas     String[]
+
+  status        VacancyStatus @default(ACTIVE)
+  isHighlighted Boolean       @default(false)
+  expiresAt     DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposals Proposal[]
+}
+
+enum WorkModality {
+  ONSITE
+  HYBRID
+  REMOTE
+}
+
+enum HiringPossibility {
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
+enum VacancyStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+  EXPIRED
+}
+
+// ── PROPOSTAS ─────────────────────────────────────────────────
+model Proposal {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation("CompanyProposals", fields: [companyId], references: [id])
+  studentId String
+  student   Student @relation("StudentProposals", fields: [studentId], references: [id])
+  vacancyId String?
+  vacancy   Vacancy? @relation(fields: [vacancyId], references: [id])
+
+  message     String         @db.Text
+  status      ProposalStatus @default(PENDING)
+  viewedAt    DateTime?
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ProposalStatus {
+  PENDING
+  VIEWED
+  INTERESTED
+  DECLINED
+  HIRED
+}
